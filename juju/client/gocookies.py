@@ -5,8 +5,44 @@ import datetime
 import http.cookiejar as cookiejar
 import json
 import time
-
 import pyrfc3339
+
+
+# There are certain subtle differences between the Go and Python
+# cookie implementations that make them incompatible. Particularly,
+# Juju relies on domains being permitted to be arbitrary strings,
+# while Python will try to convert these internally to local domains.
+# The only reasonably economical solution to this problem is to monkey
+# patch the affected class in anticipation of a good solution.
+
+def better_return_ok_domain():
+    old_method = cookiejar.DefaultCookiePolicy.return_ok_domain
+
+    def inner(self, cookie, request):
+        '''This is a monkey patch for the DefaultCookiePolicy class
+        that allows arbitrary domains to be used in cookies.'''
+        if cookie.domain == request.host:
+            return True
+        else:
+            return old_method(self, cookie, request)
+    return inner
+
+
+def better_domain_return_ok():
+    old_method = cookiejar.DefaultCookiePolicy.domain_return_ok
+
+    def inner(self, domain, request):
+        '''This is a monkey patch for the DefaultCookiePolicy class
+        that allows arbitrary domains to be used in cookies.'''
+        if domain == request.host:
+            return True
+        else:
+            return old_method(self, domain, request)
+    return inner
+
+
+cookiejar.DefaultCookiePolicy.return_ok_domain = better_return_ok_domain()
+cookiejar.DefaultCookiePolicy.domain_return_ok = better_domain_return_ok()
 
 
 class GoCookieJar(cookiejar.FileCookieJar):

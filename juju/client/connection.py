@@ -256,7 +256,8 @@ class Connection:
             specified_facades=None,
             proxy=None,
             debug_log_conn=None,
-            debug_log_params={}
+            debug_log_params={},
+            cookie_domain=None,
     ):
         """Connect to the websocket.
 
@@ -285,8 +286,10 @@ class Connection:
             to prevent using the conservative client pinning with in the client.
         :param TextIOWrapper debug_log_conn: target if this is a debug log connection
         :param dict debug_log_params: filtering parameters for the debug-log output
+        :param str cookie_domain: Which domain the controller uses for cookies.
         """
         self = cls()
+        self.cookie_domain = cookie_domain
         if endpoint is None:
             raise ValueError('no endpoint provided')
         if not isinstance(endpoint, str) and not isinstance(endpoint, list):
@@ -301,7 +304,7 @@ class Connection:
             if password is not None:
                 raise errors.JujuAuthError('cannot log in as external '
                                            'user with a password')
-            username = None
+
         self.usertag = tag.user(username)
         self.password = password
 
@@ -762,6 +765,7 @@ class Connection:
             'bakery_client': self.bakery_client,
             'max_frame_size': self.max_frame_size,
             'proxy': self.proxy,
+            'cookie_domain': self.cookie_domain,
         }
 
     async def controller(self):
@@ -774,6 +778,7 @@ class Connection:
             cacert=self.cacert,
             bakery_client=self.bakery_client,
             max_frame_size=self.max_frame_size,
+            cookie_domain=self.cookie_domain,
         )
 
     async def reconnect(self):
@@ -871,7 +876,7 @@ class Connection:
             # a few times.
             for i in range(0, 2):
                 result = (await self.login())['response']
-                macaroonJSON = result.get('discharge-required')
+                macaroonJSON = result.get('bakery-discharge-required')
                 if macaroonJSON is None:
                     self.info = result
                     success = True
@@ -962,7 +967,7 @@ class Connection:
             params['credentials'] = self.password
         else:
             macaroons = _macaroons_for_domain(self.bakery_client.cookies,
-                                              self.endpoint)
+                                              self.cookie_domain)
             params['macaroons'] = [[bakery.macaroon_to_dict(m) for m in ms]
                                    for ms in macaroons]
 

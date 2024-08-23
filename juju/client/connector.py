@@ -65,6 +65,8 @@ class Connector:
         """
         kwargs.setdefault('max_frame_size', self.max_frame_size)
         kwargs.setdefault('bakery_client', self.bakery_client)
+        kwargs.setdefault('cookie_domain', self.jujudata.cookie_domain_for_controller(endpoint=kwargs.get("endpoints")))
+
         account = kwargs.pop('account', {})
         # Prioritize the username and password that user provided
         # If not enough, try to patch it with info from accounts.yaml
@@ -73,18 +75,19 @@ class Connector:
         if 'password' not in kwargs and account.get('password'):
             kwargs.update(password=account.get('password'))
 
-        if 'macaroons' in kwargs:
-            if not kwargs['bakery_client']:
-                kwargs['bakery_client'] = httpbakery.Client()
-            if not kwargs['bakery_client'].cookies:
-                kwargs['bakery_client'].cookies = GoCookieJar()
-            jar = kwargs['bakery_client'].cookies
-            for macaroon in kwargs.pop('macaroons'):
-                jar.set_cookie(go_to_py_cookie(macaroon))
-        else:
-            if not ({'username', 'password'}.issubset(kwargs)):
-                required = {'username', 'password'}.difference(kwargs)
-                raise ValueError(f'Some authentication parameters are required : {",".join(required)}')
+        if not kwargs["bakery_client"]:
+            if 'macaroons' in kwargs:
+                if not kwargs['bakery_client']:
+                    kwargs['bakery_client'] = httpbakery.Client()
+                if not kwargs['bakery_client'].cookies:
+                    kwargs['bakery_client'].cookies = GoCookieJar()
+                jar = kwargs['bakery_client'].cookies
+                for macaroon in kwargs.pop('macaroons'):
+                    jar.set_cookie(go_to_py_cookie(macaroon))
+            else:
+                if not ({'username', 'password'}.issubset(kwargs)):
+                    required = {'username', 'password'}.difference(kwargs)
+                    raise ValueError(f'Some authentication parameters are required : {",".join(required)}')
 
         if 'debug_log_conn' in kwargs:
             assert self._connection

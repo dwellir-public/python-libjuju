@@ -182,3 +182,28 @@ class FileJujuData(JujuData):
         jar = GoCookieJar(str(f))
         jar.load()
         return jar
+
+    def cookie_domain_for_controller(self, controller_name=None, endpoint=None):
+        '''Returns the correct cookie domain.
+
+        The cookie domain used by the controller is either the
+        field public-hostname in the controllers.yaml file, or the uuid if this is
+        not available. If neither controller_name nor endpoint are specified, assume
+        the current controller.
+
+        :param str controller_name: The name of the controller.
+        :param str endpoint: The endpoint of the controller.
+        '''
+        if all([controller_name, endpoint]):
+            raise ValueError('Specify either controller_name or endpoint, not both')
+        if controller_name:
+            controller = controller_name
+        elif endpoint:
+            controller = self.controller_name_by_endpoint(endpoint)
+        else:
+            controller = self.current_controller()
+
+        controllers = self.controllers()
+        controller_data = controllers.get(controller)
+
+        return controller_data.get('public-hostname', controller_data.get('uuid'))
