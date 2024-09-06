@@ -8,47 +8,27 @@ import time
 import pyrfc3339
 
 
-# There are certain subtle differences between the Go and Python
-# cookie implementations that make them incompatible. Particularly,
-# Juju relies on domains being permitted to be arbitrary strings,
-# while Python will try to convert these internally to local domains.
-# The only reasonably economical solution to this problem is to monkey
-# patch the affected class in anticipation of a good solution.
+class JujuCookiePolicy(cookiejar.DefaultCookiePolicy):
+    '''A cookie policy that allows arbitrary strings to be used for cookie domains
+    as long as they match the host in the request exactly. This is necessary for interacting
+    with the juju controller, which uses UUID's for cookie domains in some circumstances.'''
+    def return_ok_domain(self, cookie, request):
+        return cookie.domain == request.host or super().return_ok_domain(cookie, request)
 
-def better_return_ok_domain():
-    old_method = cookiejar.DefaultCookiePolicy.return_ok_domain
-
-    def inner(self, cookie, request):
-        '''This is a monkey patch for the DefaultCookiePolicy class
-        that allows arbitrary domains to be used in cookies.'''
-        if cookie.domain == request.host:
-            return True
-        else:
-            return old_method(self, cookie, request)
-    return inner
-
-
-def better_domain_return_ok():
-    old_method = cookiejar.DefaultCookiePolicy.domain_return_ok
-
-    def inner(self, domain, request):
-        '''This is a monkey patch for the DefaultCookiePolicy class
-        that allows arbitrary domains to be used in cookies.'''
-        if domain == request.host:
-            return True
-        else:
-            return old_method(self, domain, request)
-    return inner
-
-
-cookiejar.DefaultCookiePolicy.return_ok_domain = better_return_ok_domain()
-cookiejar.DefaultCookiePolicy.domain_return_ok = better_domain_return_ok()
+    def domain_return_ok(self, domain, request):
+        return domain == request.host or super().domain_return_ok(domain, request)
 
 
 class GoCookieJar(cookiejar.FileCookieJar):
     '''A CookieJar implementation that reads and writes cookies
     to the cookiejar format as understood by the Go package
     github.com/juju/persistent-cookiejar.'''
+    def __init__(self, filename=None, delayload=False, policy=None):
+        if policy is None:
+            policy = JujuCookiePolicy()
+
+        super().__init__(filename, delayload, policy)
+
     def _really_load(self, f, filename, ignore_discard, ignore_expires):
         '''Implement the _really_load method called by FileCookieJar
         to implement the actual cookie loading'''
